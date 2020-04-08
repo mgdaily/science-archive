@@ -1,9 +1,14 @@
 import boto3
 from functools import lru_cache
 from django.conf import settings
+import os
+import logging
 
 from kombu.connection import Connection
 from kombu import Exchange
+
+
+logger = logging.getLogger()
 
 
 @lru_cache(maxsize=1)
@@ -52,6 +57,7 @@ def post_to_archived_queue(payload):
 def build_nginx_zip_text(frames, directory):
     client = get_s3_client()
     ret = []
+    new_bucket = os.getenv('NEW_AWS_BUCKET', 'archive-lco-global')
 
     for frame in frames:
         # Parameters for AWS S3 URL signing request
@@ -68,7 +74,7 @@ def build_nginx_zip_text(frames, directory):
         # portion of the generated URL with an internal NGINX location which proxies all
         # traffic to AWS S3.
         if version.migrated:
-            location = url.replace('https://archive-lco-global.s3.amazonaws.com', '/news3')
+            location = url.replace('https://' + new_bucket + '.s3.amazonaws.com', '/news3')
         else:
             location = url.replace('https://s3.us-west-2.amazonaws.com', '/s3')
         # The NGINX mod_zip module builds ZIP files using a manifest. Build the manifest
@@ -80,6 +86,7 @@ def build_nginx_zip_text(frames, directory):
             basename=frame.basename,
             extension=version.extension,
         )
+        logger.error(line)
         # Add to returned lines
         ret.append(line)
 
